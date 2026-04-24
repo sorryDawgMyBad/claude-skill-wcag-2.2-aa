@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw[a-p]
+Session.vim
+.netrwhist
+*.sublime-workspace
+*.sublime-project
+.project
+.settings/
+.classpath
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Direnv / env
+.envrc
+.env
+.env.local
+
+# Logs
+*.log

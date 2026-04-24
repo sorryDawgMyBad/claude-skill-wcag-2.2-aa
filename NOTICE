@@ -1,0 +1,34 @@
+claude-skill-wcag-2.2-aa
+Copyright 2026 Mark Oglia
+
+This project references and paraphrases material from the Web Content
+Accessibility Guidelines (WCAG) 2.2, a W3C Recommendation published by
+the World Wide Web Consortium (W3C) through the Web Accessibility
+Initiative (WAI):
+
+    Web Content Accessibility Guidelines (WCAG) 2.2
+    W3C Recommendation 05 October 2023 (latest version at time of authoring)
+    https://www.w3.org/TR/WCAG22/
+
+Copyright © W3C® (MIT, ERCIM, Keio, Beihang).
+WCAG 2.2 is made available under the W3C Document License:
+
+    https://www.w3.org/copyright/document-license/
+
+The success criterion numbers, titles, and conformance levels referenced
+in this skill are drawn from the official WCAG 2.2 publication. Code
+examples, DO/DON'T patterns, commentary, rationalizations, and skill
+structure are original work by the authors of this repository,
+informed by but not reproduced verbatim from W3C normative text.
+
+The W3C and WAI do not endorse this project. All interpretations,
+recommendations, examples, and suggested workflows presented here are
+the responsibility of this project's authors, not W3C.
+
+"W3C", "WAI", and "WCAG" are trademarks of the World Wide Web
+Consortium. Use of these names in this project is solely for
+attribution of the source material.
+
+The word "Claude" is a trademark of Anthropic PBC. This project is an
+independent community tool and is not affiliated with, endorsed by, or
+sponsored by Anthropic.

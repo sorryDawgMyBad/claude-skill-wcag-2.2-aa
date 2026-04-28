@@ -60,7 +60,7 @@ Headings must describe their section, not just "big text." Do not skip levels (h
 Every input has a programmatic label. Required fields marked programmatically (not just with a red asterisk). Errors are announced and associated via `aria-describedby`. `autocomplete` set on identity/contact/payment fields (name, email, tel, cc-number, address-*). Error messages should **suggest a fix** (SC 3.3.3, AA), not just flag the problem.
 
 ### Keyboard — SC 2.1.1, 2.1.2, 2.4.3, 2.4.7, 2.4.11
-Everything interactive reaches via Tab. Focus order matches visual order. Focus visible (never `outline: none` without replacement). No keyboard traps (modals must escape via Esc). **2.2 NEW — SC 2.4.11 "Focus Not Obscured (Minimum)" (AA):** when an element receives focus, it must not be entirely hidden by author-created content (sticky headers, cookie banners, chat widgets).
+Everything interactive reaches via Tab. Focus order matches visual order. Focus visible (never `outline: none` without replacement). No keyboard traps (modals must escape via Esc). **2.2 NEW — SC 2.4.11 "Focus Not Obscured (Minimum)" (AA):** when an element receives focus, it must not be entirely hidden by author-created content (sticky headers, cookie banners, chat widgets). **Watch for the multi-background failure mode (SC 1.4.11):** a single global focus-ring color often passes 3:1 on dark sections but fails on light sections (or vice versa). When the page has multiple distinct background colors — dark hero, light body, brand-color CTA — scope the ring color per section via a CSS custom property, or use a two-color halo (`outline` + `box-shadow`). See `patterns.md` "Focus rings on multi-background pages."
 
 ### Color & contrast — SC 1.4.1, 1.4.3, 1.4.11, 1.4.12
 Body text 4.5:1 vs background. Large text (≥18pt or ≥14pt bold) 3:1. UI components, focus indicators, and icons conveying state 3:1 (SC 1.4.11). Color alone never conveys info — pair with icon/text (SC 1.4.1). Layout must still function when users override text spacing (SC 1.4.12, AA).
@@ -72,7 +72,7 @@ Text must scale to 200% without loss of content or function (SC 1.4.4, AA). Cont
 Prefer native HTML (`<button>` over `<div role="button">`). If using ARIA, follow the WAI-ARIA Authoring Practices (APG) patterns — note these are non-normative design guides, not WCAG requirements. Modals need focus trap, return focus on close, `role="dialog"` + `aria-modal="true"`. Never put an ARIA role on an element that already has the equivalent native role (`<button role="button">` is an anti-pattern). Dynamic status updates go in a live region or element with `role="status"`/`role="alert"` (SC 4.1.3, AA).
 
 ### Motion & input — SC 2.3.1, 2.3.3, 2.5.1, 2.5.7, 2.5.8
-No content flashes more than three times per second (SC 2.3.1). Respect `prefers-reduced-motion` for animations, parallax, and autoplay (SC 2.3.3 at AAA, but widely expected). **2.2 NEW — SC 2.5.7 "Dragging Movements" (AA):** drag interactions must have a single-pointer non-drag alternative. **2.2 NEW — SC 2.5.8 "Target Size (Minimum)" (AA):** pointer targets are at least 24×24 CSS pixels, with defined exceptions (spacing, inline in text, equivalent elsewhere, user-agent defaults, essential).
+No content flashes more than three times per second (SC 2.3.1). Respect `prefers-reduced-motion` for animations, parallax, and autoplay (SC 2.3.3 at AAA, but widely expected). **Auditor's note: animations on `::before` / `::after` pseudo-elements** are a common blind spot — JS `document.querySelectorAll('*')` doesn't reach them, so a runtime sweep can miss them. Grep the stylesheet for `@keyframes` and `animation:` declarations and trace where each is applied; check pseudo-element targets explicitly. **2.2 NEW — SC 2.5.7 "Dragging Movements" (AA):** drag interactions must have a single-pointer non-drag alternative. **2.2 NEW — SC 2.5.8 "Target Size (Minimum)" (AA):** pointer targets are at least 24×24 CSS pixels, with defined exceptions (spacing, inline in text, equivalent elsewhere, user-agent defaults, essential).
 
 ### Page-level — SC 2.4.2, 3.1.1, 3.2.3, 3.2.4, 3.2.6
 Unique descriptive `<title>` per page. Root `<html lang="...">` set correctly (SC 3.1.1). Navigation and same-function component labels consistent across pages (SC 3.2.3, 3.2.4). **2.2 NEW — SC 3.2.6 "Consistent Help" (A):** if a help mechanism (contact link, chat widget, self-serve help link) appears on multiple pages, it must appear in the same relative order on each page.
@@ -94,6 +94,8 @@ Fix: alt="<describe what the image depicts in context>"
 ```
 
 Group: Level A issues > Level AA issues > advisory notes. A and AA block completion unless the user explicitly defers. AAA notes are informational.
+
+**Also include a "Verified passing" section** listing the SCs that were checked and confirmed compliant (e.g., `1.4.10 Reflow ✅ no horizontal scroll at 320px`, `2.5.8 Target Size ✅ 0 interactive elements below 24×24`). Listing only failures leaves the reviewer guessing at coverage; an explicit pass list shows the audit's scope and builds trust that nothing was skipped.
 
 ## Scope limits
 

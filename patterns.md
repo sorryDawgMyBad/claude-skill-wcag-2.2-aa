@@ -317,6 +317,35 @@ button:focus { outline: none; }
 /* Actually, don't. Focus must be visible. */
 ```
 
+### Focus rings on multi-background pages (SC 1.4.11)
+
+A single global focus-ring color is the most common 1.4.11 failure mode on real sites. Yellow/cyan/lime accents look great on a dark hero but fail 3:1 contrast on a light body section (or vice versa). Two ways to fix:
+
+```css
+/* DO — per-section focus color via CSS custom property
+   Each section overrides --focus-ring with a value that hits 3:1 against ITS bg. */
+:root { --focus-ring: #FFCB05; }              /* yellow on dark chrome */
+
+.section--light { --focus-ring: #0E2747; }    /* navy on bone bg → 13:1 */
+.section--cream { --focus-ring: #1A1F2C; }    /* near-black on cream → 15:1 */
+.section--dark  { --focus-ring: #FFCB05; }    /* yellow stays on carbon → 14:1 */
+
+:where(a, button):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* DO (alternative) — two-color "halo" works on any background
+   The inner ring contrasts against light surfaces, the outer ring against dark. */
+:where(a, button):focus-visible {
+  outline: 2px solid #0F1112;        /* dark inner ring */
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #FFFFFF;     /* light outer ring */
+}
+```
+
+Verifying this on a live page: focus the same control inside each section background and inspect `getComputedStyle(el).outlineColor`. If it's the same color across sections with different backgrounds, run the contrast math against each — at least one is probably failing.
+
 ### Clickable non-buttons
 
 ```tsx
@@ -548,6 +577,25 @@ Keep live-region containers present in the DOM from page load; screen readers so
 @media (prefers-reduced-motion: reduce) {
   .parallax { transform: none; }
 }
+```
+
+**Auditing animations: don't forget pseudo-elements.** A common blind spot is animations declared on `::before` or `::after` (e.g., a pulsing status dot, a shimmer overlay). Runtime sweeps using `document.querySelectorAll('*')` won't reach pseudo-elements — the JS misses them and the auditor moves on. Two ways to catch them:
+
+```bash
+# DO — grep the stylesheet for keyframe definitions and animation declarations
+grep -nE '@keyframes|animation:|animation-name:' your-styles.css
+
+# Then for each match, find what selector applies it (often a ::before / ::after)
+```
+
+```js
+// DO — if Playwright is wired in, sample pseudo-element computed styles directly
+await page.evaluate(() => {
+  const before = getComputedStyle(document.querySelector('.status-dot'), '::before');
+  return { name: before.animationName, duration: before.animationDuration };
+});
+
+// Verify with reducedMotion: 'reduce' context that animation-duration drops to ~0.01ms
 ```
 
 ### No flashing — SC 2.3.1

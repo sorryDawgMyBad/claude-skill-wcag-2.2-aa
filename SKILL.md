@@ -13,9 +13,13 @@ Real accessibility requires automated tools AND human judgment. This skill orche
 
 UI work is NOT complete until:
 
-1. **Automated scan passes** (eslint-plugin-jsx-a11y on modified files; axe/pa11y if available)
-2. **Semantic checks pass** (apply heuristics below to changed code)
+1. **Automated scan was actually run AND passed** — both layers, not optional:
+   - `eslint-plugin-jsx-a11y` on modified files (catches static issues at lint time)
+   - **axe-core via Playwright/pa11y on rendered pages (REQUIRED, not "if available")** — catches runtime issues lint can't see (computed contrast, ARIA state, focus visibility on actual DOM). If you skipped this step, the audit is INCOMPLETE — say so explicitly and either (a) wire it up now using the recipe in Step 2, or (b) document why you couldn't.
+2. **Semantic checks pass** (apply heuristics below to changed code — this is the value tools can't replace)
 3. **Known-but-unfixed issues are explicitly acknowledged by the user**
+
+> **Why automated scans are non-negotiable:** axe-core finds ~30–50% of WCAG issues automatically — including things that are tedious and error-prone for a human reviewer (computed color contrast, every form input, every landmark, every ARIA mismatch). Skipping it shifts that work onto your semantic review where you'll inevitably miss things. The two layers compose; neither replaces the other.
 
 When you find likely AA issues: cite the specific success criterion (e.g., "SC 1.1.1"), explain what's wrong, propose a fix. Do not declare the task complete. If the user overrides ("ship it, we'll fix in a follow-up"), proceed — and leave a `// TODO(a11y SC X.Y.Z): <brief>` comment at the site so it's discoverable.
 
@@ -33,15 +37,72 @@ If missing, recommend (don't auto-install):
 - **Test harness:** `@axe-core/playwright`, `@axe-core/react`, or `jest-axe`
 - **CLI audit:** `pa11y <url>` — one-shot audit of a running URL
 
-## Step 2 — Automated scan
+## Step 2 — Automated scan (REQUIRED)
 
-Run fast-to-slow:
+This step is mandatory before semantic review. Run fast-to-slow:
 
-1. `npm run lint` (or `eslint <changed-files>`) — catches missing alt, button-has-type, click-events-have-key-events, invalid ARIA roles, etc.
-2. If Playwright/axe wired in: `npx playwright test` — catches runtime issues (contrast, missing landmarks, ARIA state)
-3. If site is live: `npx pa11y https://<url>` — one-shot audit
+### 2a. Lint (fast, catches static markup issues)
 
-Report each finding with its WCAG SC reference and severity. Remember: axe, pa11y, and linters find a meaningful fraction of issues, not all of them. Research consistently shows automated tools surface roughly 30–40% of WCAG problems; the remainder require manual review and assistive-tech testing.
+```bash
+npm run lint
+# or, scoped to changed files:
+npx eslint <changed-files>
+```
+
+Catches: missing alt, `button-has-type`, `click-events-have-key-events`, invalid ARIA roles, etc. These are markup-level rules that don't need a running browser.
+
+### 2b. Runtime axe scan (REQUIRED — not optional)
+
+This catches what lint can't see: computed color contrast, focus visibility on the rendered DOM, runtime ARIA state, missing landmarks in the actual output. **Do not skip this step.**
+
+Three paths in priority order:
+
+1. **Project has a QA script.** Look for `scripts/qa/a11y.mjs`, `tests/a11y.spec.ts`, `playwright.config.ts`, or similar. If one exists, run it:
+   ```bash
+   npm run qa:a11y -- <url>
+   # or
+   npm run test:a11y
+   ```
+2. **Project uses `@axe-core/playwright` directly in test suite.** Run the test suite: `npx playwright test`.
+3. **Nothing wired up — wire it in-line.** Don't punt; spin up axe via Playwright on the spot:
+   ```js
+   // ad-hoc-axe-scan.mjs
+   import { chromium } from "@playwright/test";
+   import { readFile } from "node:fs/promises";
+
+   const url = process.argv[2] || "http://localhost:3000";
+   const axeSource = await readFile("./node_modules/axe-core/axe.min.js", "utf8");
+
+   const browser = await chromium.launch();
+   const page = await browser.newPage();
+   await page.goto(url, { waitUntil: "networkidle" });
+   await page.addScriptTag({ content: axeSource });
+   const { violations } = await page.evaluate(() => window.axe.run(document, {
+     runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+   }));
+   for (const v of violations) {
+     console.log(`[${v.impact}] ${v.id} — ${v.help}\n  ${v.helpUrl}\n  ${v.nodes.length} node(s)`);
+   }
+   await browser.close();
+   process.exit(violations.some((v) => ["critical", "serious"].includes(v.impact)) ? 1 : 0);
+   ```
+   Requires `@playwright/test` and `axe-core` (both common transitive deps in any Next.js project with `eslint-config-next`). If neither is installed, install: `npm install --save-dev @playwright/test axe-core`.
+
+### 2c. Optional CLI sanity check
+
+```bash
+npx pa11y https://<live-url>  # one-shot audit, no setup
+```
+
+Faster than wiring Playwright if you just need a quick sanity check, but axe-core has wider rule coverage.
+
+### What to do with results
+
+Report each finding with its WCAG SC reference and severity. Group findings by route. **Run axe before semantic review, not after** — semantic review is for the half of issues axe doesn't catch; you can't focus there if low-hanging contrast/landmark issues are still open.
+
+If you genuinely cannot run axe (offline environment, site can't be served, framework doesn't render to a real DOM), say so explicitly in the report header and proceed with semantic-only review — but mark the audit as **INCOMPLETE — automated scan skipped**.
+
+Reminder on coverage limits: axe, pa11y, and linters find a meaningful fraction of WCAG issues, not all. Roughly 30–50% of real WCAG problems require human review — that's what Step 3 is for.
 
 ## Step 3 — Semantic review (the LLM-specific value)
 
@@ -84,7 +145,27 @@ Unique descriptive `<title>` per page. Root `<html lang="...">` set correctly (S
 
 ## Report format
 
-When you find likely issues:
+Every audit report MUST start with an automated-scan results header so the reviewer knows the audit's actual coverage. Then list findings, then list verified-passing items.
+
+### Report header (required)
+
+```
+## Automated scan results
+- Tool: axe-core via Playwright (or pa11y, or "skipped — see note")
+- Routes scanned: /, /services, /about, /faq, /book, /privacy, /terms
+- Violations: 0 blocking (critical/serious), 2 moderate, 0 minor
+- Lint: npm run lint clean
+- Timestamp: 2026-05-02T14:32:00Z
+```
+
+If automated scan was skipped, header MUST say so and explain why:
+```
+## Automated scan results
+**INCOMPLETE — axe-core was not run.** Reason: [e.g. site can't be served, no internet, Storybook-only review, etc.]
+The semantic review below covers human-grade checks only. Re-run with axe before declaring done.
+```
+
+### Findings (per issue)
 
 ```
 [SC 1.1.1 — Non-text Content] (A)
@@ -95,7 +176,11 @@ Fix: alt="<describe what the image depicts in context>"
 
 Group: Level A issues > Level AA issues > advisory notes. A and AA block completion unless the user explicitly defers. AAA notes are informational.
 
-**Also include a "Verified passing" section** listing the SCs that were checked and confirmed compliant (e.g., `1.4.10 Reflow ✅ no horizontal scroll at 320px`, `2.5.8 Target Size ✅ 0 interactive elements below 24×24`). Listing only failures leaves the reviewer guessing at coverage; an explicit pass list shows the audit's scope and builds trust that nothing was skipped.
+### Verified passing (required)
+
+A list of the SCs that were checked and confirmed compliant (e.g., `1.4.10 Reflow ✅ no horizontal scroll at 320px`, `2.5.8 Target Size ✅ 0 interactive elements below 24×24`). Listing only failures leaves the reviewer guessing at coverage; an explicit pass list shows the audit's scope and builds trust that nothing was skipped.
+
+For SCs covered by axe directly (1.1.1 alt presence, 1.4.3 contrast, 4.1.2 ARIA, etc.), it's fine to credit axe as the verifier: `1.4.3 Contrast (minimum) ✅ axe: 0 violations`. For SCs that need semantic judgment (alt-text *meaning*, focus management, link-purpose-out-of-context), credit your manual review: `2.4.4 Link Purpose ✅ manual: all CTAs descriptive out of context`.
 
 ## Scope limits
 

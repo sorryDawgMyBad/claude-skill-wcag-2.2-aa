@@ -12,7 +12,7 @@ Specifically:
 
 - **No guarantee of WCAG conformance.** Following every suggestion in this skill does **not** demonstrate conformance with WCAG 2.2 at Level A, AA, or any other level. Formal conformance requires a documented evaluation by qualified auditors against the full normative spec, covering pages you build, assets you host, content you publish, third-party components you embed, and interactions you've never tested. This skill is an aid during authoring — not a substitute for that evaluation.
 - **No guarantee of legal or regulatory compliance.** Using this skill does **not** by itself satisfy the Americans with Disabilities Act (ADA), Section 508 of the US Rehabilitation Act, the European Accessibility Act, EN 301 549, AODA, UK Equality Act 2010, or any other statute, regulation, court order, settlement, or contractual accessibility obligation. Legal standards change, vary by jurisdiction, depend on facts specific to your organization and users, and often require documentation (VPAT/ACR authoring, audit trails) this skill does not produce. **If accessibility conformance has legal, regulatory, or contractual consequences for you, engage qualified counsel and an independent, qualified accessibility auditor.** Do not treat this repository's output as legal advice.
-- **No substitute for real assistive-technology testing.** Tools and checklists cannot evaluate whether a flow actually works for a blind user with NVDA, a low-vision user at 400% zoom, a motor-impaired user on a switch, a cognitively disabled user under time pressure, or any real user of assistive technology. Research consistently shows that automated tools catch somewhere around 30–40% of WCAG issues. The rest require manual review and, ideally, testing with users of the relevant assistive technologies and disability communities.
+- **No substitute for real assistive-technology testing.** Tools and checklists cannot evaluate whether a flow actually works for a blind user with NVDA, a low-vision user at 400% zoom, a motor-impaired user on a switch, a cognitively disabled user under time pressure, or any real user of assistive technology. Automated tools such as axe-core test roughly 16 of the 50 Level A/AA criteria; because those are the most frequent defects they find about 57% of issues by volume (Deque, 13k+ pages). The rest — including every criterion new in WCAG 2.2 except 2.5.8 — requires manual review and, ideally, testing with users of the relevant assistive technologies and disability communities.
 - **No substitute for accessibility expertise.** Accessibility involves legal, design, content, and user-research judgment that a coding skill cannot provide. For complex interactive components, regulated contexts, content migrations, or accessibility remediation at scale, engage accessibility professionals.
 - **Code examples are illustrative.** Examples in this skill are simplified to highlight one pattern at a time. They may omit framework-specific concerns, error handling, edge cases, browser quirks, or production details relevant to your codebase. Adapt them carefully; do not copy-paste without review.
 - **Third-party components are not in scope.** Embedded widgets (payment forms, chat widgets, video players, analytics overlays, CMS-authored content, marketing scripts) can introduce accessibility failures regardless of how conformant your first-party code is. This skill flags the pattern but cannot fix upstream problems.
@@ -28,10 +28,10 @@ In short: this is a well-researched checklist and set of code patterns intended 
 When active, the skill:
 
 1. **Triggers automatically** when you work on code matching UI surfaces — JSX/HTML/Vue templates, interactive components (forms, buttons, modals, menus, accordions), images, videos, color/contrast decisions, focus management, keyboard handlers, ARIA attributes, or interactive copy.
-2. **Runs a toolchain check** and recommends installing `eslint-plugin-jsx-a11y`, `axe-core`, or `pa11y` if they are not present (it does not auto-install).
+2. **Runs a toolchain check** and, if nothing is wired up, recommends `@axe-core/playwright`, `eslint-plugin-jsx-a11y`, or `pa11y` (it does not auto-install). It then requires an actual axe-core scan of the rendered pages — at desktop and 375 px — before the work counts as reviewed, and states what axe did not cover (cross-origin iframes, every 2.2-new criterion except 2.5.8).
 3. **Applies WCAG 2.2 AA semantic heuristics** that automated tools cannot detect — alt-text meaning, link-text-out-of-context, heading hierarchy intent, error-message actionability, ARIA misuse.
 4. **Surfaces 2.2 NEW success criteria** (2.4.11 Focus Not Obscured, 2.5.7 Dragging Movements, 2.5.8 Target Size, 3.2.6 Consistent Help, 3.3.7 Redundant Entry, 3.3.8 Accessible Authentication) that many developers have not yet internalized.
-5. **Loads concrete DO/DON'T code patterns** from [patterns.md](patterns.md) for specific categories — images, labels, keyboard, contrast, ARIA components, forms, authentication, target size.
+5. **Loads field-tested patterns** from [patterns.md](patterns.md) — the traps linters and axe miss (multi-background focus rings, pseudo-element animations, pre-mounted live regions, focus-not-obscured offenders, target-size spacing math, accessible-authentication exceptions) plus Next.js, Tailwind, Radix, and embedded-widget specifics.
 6. **Refuses to declare UI work complete** while known, unfixed AA issues exist, unless the user explicitly defers with a `TODO(a11y SC X.Y.Z)` marker.
 
 It is complementary to external auditing and assistive-tech testing — not a replacement.
@@ -78,7 +78,7 @@ The `wcag-2.2-aa` skill should activate, and Claude should:
 - Check for keyboard support — Esc to dismiss, focus trap, return focus on close (SC 2.1.1, 2.1.2, 2.4.3)
 - Check target size against SC 2.5.8 (24×24 CSS pixels)
 - Recommend a library (`@radix-ui/react-dialog`, `react-aria`, `headless-ui`) rather than a hand-rolled modal
-- Ask you to run `npm run lint` and, if wired in, `npx playwright test` before calling the work done
+- Ask you to run `npm run lint` and an axe-core scan (the project's QA script, or an ad-hoc `@axe-core/playwright` run) before calling the work done
 
 If the skill doesn't activate, force it by referencing it by name or by asking Claude to "check the WCAG 2.2 AA skill."
 
@@ -87,7 +87,7 @@ If the skill doesn't activate, force it by referencing it by name or by asking C
 | File | Purpose |
 |---|---|
 | [`SKILL.md`](SKILL.md) | Main skill entry point — description, toolchain protocol, WCAG 2.2 AA heuristics, report format, scope limits |
-| [`patterns.md`](patterns.md) | Per-category DO/DON'T code patterns (React/JSX primarily; principles port to HTML/Vue/Svelte) |
+| [`patterns.md`](patterns.md) | Field-tested patterns and framework notes (React/JSX primarily; principles port to HTML/Vue/Svelte) |
 | [`NOTICE`](NOTICE) | Attribution to the W3C for WCAG 2.2 source material |
 
 ## Scope

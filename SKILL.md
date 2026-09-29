@@ -1,167 +1,180 @@
 ---
 name: wcag-2.2-aa
-description: Use when writing, modifying, or reviewing UI code — JSX/HTML/Vue templates, interactive components (forms, buttons, modals, menus, accordions), images, videos, color/contrast decisions, focus management, keyboard handlers, ARIA attributes, or interactive copy (error messages, link text, button labels) — before declaring UI work done. Orchestrates automated tools (eslint-plugin-jsx-a11y, axe-core, pa11y) plus semantic heuristics tools can't detect. Targets WCAG 2.2 Level AA (which by definition includes all Level A criteria). Load patterns.md for concrete DO/DON'T examples per category.
+description: Use when writing, modifying, or reviewing UI code — JSX/HTML/Vue templates, interactive components (forms, buttons, modals, menus, accordions), images, videos, color/contrast decisions, focus management, keyboard handlers, ARIA attributes, or interactive copy (error messages, link text, button labels) — before declaring UI work done. Also use when asked to run or interpret axe-core, eslint-plugin-jsx-a11y, or pa11y results. Targets WCAG 2.2 Level AA (which by definition includes all Level A criteria).
 ---
 
 # WCAG 2.2 AA Accessibility Review
 
-Real accessibility requires automated tools AND human judgment. This skill orchestrates the tools, flags what's missing, and applies semantic checks tools can't. Target: **WCAG 2.2 Level AA** (meeting AA requires meeting all Level A criteria plus all Level AA criteria).
+Real accessibility requires automated tools AND human judgment. This skill runs the tools, states exactly what they did and did not cover, and applies the semantic checks tools cannot. Target: **WCAG 2.2 Level AA** (all Level A plus all Level AA criteria). **SC 4.1.1 Parsing was removed in WCAG 2.2 — do not cite it.**
 
-> **Not a compliance attestation.** This skill is a structured checklist to help catch common accessibility issues earlier. Using it does not guarantee conformance with WCAG, Section 508, EN 301 549, ADA, AODA, or any other legal or regulatory standard. For regulated contexts (healthcare, finance, government contracts, VPAT/ACR authoring, settlements, or statutory compliance), engage a qualified accessibility auditor and test with real users of assistive technology. Level AAA is aspirational for critical content only and is out of scope for this skill.
+> **Not a compliance attestation.** This skill is a structured checklist to help catch common accessibility issues earlier. Using it does not guarantee conformance with WCAG, Section 508, EN 301 549, ADA, AODA, or any other legal or regulatory standard. For regulated contexts (healthcare, finance, government contracts, VPAT/ACR authoring, settlements, or statutory compliance), engage a qualified accessibility auditor and test with real users of assistive technology. Level AAA is out of scope for this skill.
 
 ## Nudge-firmly protocol
 
 UI work is NOT complete until:
 
-1. **Automated scan was actually run AND passed** — both layers, not optional:
-   - `eslint-plugin-jsx-a11y` on modified files (catches static issues at lint time)
-   - **axe-core via Playwright/pa11y on rendered pages (REQUIRED, not "if available")** — catches runtime issues lint can't see (computed contrast, ARIA state, focus visibility on actual DOM). If you skipped this step, the audit is INCOMPLETE — say so explicitly and either (a) wire it up now using the recipe in Step 2, or (b) document why you couldn't.
-2. **Semantic checks pass** (apply heuristics below to changed code — this is the value tools can't replace)
-3. **Known-but-unfixed issues are explicitly acknowledged by the user**
+1. **Automated scan was actually run AND passed** — both layers:
+   - `eslint-plugin-jsx-a11y` on modified files (static markup issues at lint time)
+   - **axe-core on rendered pages (REQUIRED)** — computed contrast, ARIA state, focus visibility on the real DOM. If you skipped it, the audit is INCOMPLETE: say so explicitly and either (a) wire it up now using Step 2, or (b) document why you couldn't.
+2. **Semantic checks pass** (Step 3 — the value tools can't replace).
+3. **Known-but-unfixed issues are explicitly acknowledged by the user.**
 
-> **Why automated scans are non-negotiable:** axe-core finds ~30–50% of WCAG issues automatically — including things that are tedious and error-prone for a human reviewer (computed color contrast, every form input, every landmark, every ARIA mismatch). Skipping it shifts that work onto your semantic review where you'll inevitably miss things. The two layers compose; neither replaces the other.
+> **What axe actually covers.** axe-core tests roughly 16 of the 50 Level A/AA criteria, but those are the most frequent defects, so it finds about **57% of issues by volume** (Deque, 13k+ pages). Everything else is manual — including every criterion new in 2.2 except 2.5.8: as of axe-core 4.13 the `wcag22aa` tag contains only the `target-size` rule. Never let a report imply that 2.4.11, 2.5.7, 3.2.6, 3.3.7, or 3.3.8 were machine-checked.
 
-When you find likely AA issues: cite the specific success criterion (e.g., "SC 1.1.1"), explain what's wrong, propose a fix. Do not declare the task complete. If the user overrides ("ship it, we'll fix in a follow-up"), proceed — and leave a `// TODO(a11y SC X.Y.Z): <brief>` comment at the site so it's discoverable.
+When you find likely A/AA issues: cite the success criterion (e.g., "SC 1.1.1"), explain what's wrong, propose a fix. Do not declare the task complete. If the user overrides ("ship it, fix in a follow-up"), proceed and leave `// TODO(a11y SC X.Y.Z): <brief>` at the site.
+
+### Scope gate — which steps run
+
+| The change touches | Lint | Runtime axe | Semantic review |
+|---|---|---|---|
+| Markup, CSS, or interaction (components, styles, handlers) | always | yes | full Step 3 |
+| Copy only (text, headings, link labels, error strings) | always | at PR review | link text, headings, error wording only |
+| Any UI change at PR-review time | always | yes | full Step 3 |
 
 ## Step 1 — Toolchain check (once per project)
 
 ```bash
-find . -name package.json -not -path '*/node_modules/*' -print0 \
-  | xargs -0 grep -l -E '"(eslint-plugin-jsx-a11y|axe-core|@axe-core|pa11y|jest-axe)"' \
-  || echo "No a11y tooling detected."
+grep -E '"(eslint-plugin-jsx-a11y|axe-core|@axe-core/[a-z]+|pa11y|jest-axe)"' package.json
+ls scripts/qa/a11y.* tests/a11y* playwright.config.* 2>/dev/null
 ```
 
-If missing, recommend (don't auto-install):
+In a Next.js project `axe-core` and `eslint-plugin-jsx-a11y` are usually only **transitive** dependencies (`eslint-config-next → eslint-plugin-jsx-a11y → axe-core`). That works under npm's flat layout but breaks under pnpm and can vanish on an upgrade — if a scan script relies on them, add them as explicit devDependencies. `eslint-plugin-jsx-a11y` supports ESLint ≤ 9; on ESLint 10 `eslint-config-next` cannot install and a11y linting silently disappears. Stay on ESLint 9 until you deliberately migrate, or switch to `eslint-plugin-jsx-a11y-x`.
 
-- **React/Next.js:** `eslint-plugin-jsx-a11y` — included by `eslint-config-next`; verify your `.eslintrc` extends it
-- **Test harness:** `@axe-core/playwright`, `@axe-core/react`, or `jest-axe`
-- **CLI audit:** `pa11y <url>` — one-shot audit of a running URL
+If nothing is present, recommend (don't auto-install): `@axe-core/playwright` + `@playwright/test` for runtime scans, `eslint-plugin-jsx-a11y` for lint, `pa11y` for one-shot CLI audits.
 
 ## Step 2 — Automated scan (REQUIRED)
 
-This step is mandatory before semantic review. Run fast-to-slow:
+Run fast-to-slow, before semantic review.
 
-### 2a. Lint (fast, catches static markup issues)
+### 2a. Lint
 
 ```bash
-npm run lint
-# or, scoped to changed files:
-npx eslint <changed-files>
+npm run lint            # or scoped: npx eslint <changed-files>
 ```
 
-Catches: missing alt, `button-has-type`, `click-events-have-key-events`, invalid ARIA roles, etc. These are markup-level rules that don't need a running browser.
+`eslint-config-next` enables only six jsx-a11y rules, at `warn`. For the full recommended set at `error`, spread `jsxA11y.flatConfigs.recommended.rules` into the flat config.
 
-### 2b. Runtime axe scan (REQUIRED — not optional)
+### 2b. Runtime axe scan
 
-This catches what lint can't see: computed color contrast, focus visibility on the rendered DOM, runtime ARIA state, missing landmarks in the actual output. **Do not skip this step.**
+Three paths, in priority order:
 
-Three paths in priority order:
+1. **The project has a scan script** (`scripts/qa/a11y.mjs`, `npm run test:a11y`, or similar). Run it against the preview or dev URL.
+2. **The project uses `@axe-core/playwright` in its test suite.** Run `npx playwright test`.
+3. **Nothing wired up — wire it in-line.** Don't punt:
 
-1. **Project has a QA script.** Look for `scripts/qa/a11y.mjs`, `tests/a11y.spec.ts`, `playwright.config.ts`, or similar. If one exists, run it:
    ```bash
-   npm run qa:a11y -- <url>
-   # or
-   npm run test:a11y
+   npm i -D @axe-core/playwright @playwright/test && npx playwright install chromium
    ```
-2. **Project uses `@axe-core/playwright` directly in test suite.** Run the test suite: `npx playwright test`.
-3. **Nothing wired up — wire it in-line.** Don't punt; spin up axe via Playwright on the spot:
+
    ```js
    // ad-hoc-axe-scan.mjs
    import { chromium } from "@playwright/test";
-   import { readFile } from "node:fs/promises";
+   import { AxeBuilder } from "@axe-core/playwright";
 
    const url = process.argv[2] || "http://localhost:3000";
-   const axeSource = await readFile("./node_modules/axe-core/axe.min.js", "utf8");
-
    const browser = await chromium.launch();
-   const page = await browser.newPage();
-   await page.goto(url, { waitUntil: "networkidle" });
-   await page.addScriptTag({ content: axeSource });
-   const { violations } = await page.evaluate(() => window.axe.run(document, {
-     runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
-   }));
-   for (const v of violations) {
-     console.log(`[${v.impact}] ${v.id} — ${v.help}\n  ${v.helpUrl}\n  ${v.nodes.length} node(s)`);
+   let blocking = 0;
+   // Scan desktop AND 375px: axe's target-size results are viewport-dependent.
+   for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+     // bypassCSP: a strict Content-Security-Policy otherwise blocks axe's injected script.
+     const context = await browser.newContext({ viewport, bypassCSP: true });
+     const page = await context.newPage();
+     await page.goto(url, { waitUntil: "load" }); // not "networkidle" — Playwright marks it DISCOURAGED
+     await page.waitForSelector("main");
+     const { violations } = await new AxeBuilder({ page })
+       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+       .analyze();
+     for (const v of violations) {
+       console.log(`[${viewport.width}px] [${v.impact}] ${v.id} — ${v.help}\n  ${v.helpUrl}\n  ${v.nodes.length} node(s)`);
+       if (["critical", "serious"].includes(v.impact)) blocking++;
+     }
+     await context.close();
    }
    await browser.close();
-   process.exit(violations.some((v) => ["critical", "serious"].includes(v.impact)) ? 1 : 0);
+   process.exit(blocking ? 1 : 0);
    ```
-   Requires `@playwright/test` and `axe-core` (both common transitive deps in any Next.js project with `eslint-config-next`). If neither is installed, install: `npm install --save-dev @playwright/test axe-core`.
+
+   ```bash
+   node ad-hoc-axe-scan.mjs http://localhost:3000   # exit 1 on any critical/serious violation
+   ```
+
+   Fallback when you cannot add dependencies: read `node_modules/axe-core/axe.min.js`, inject it with `page.addScriptTag({ content })`, then `page.evaluate(() => axe.run(document, { runOnly: { type: "tag", values: [...] } }))`. Same `bypassCSP` and wait strategy apply.
+
+Also scan the **primary interactive states** (modal open, menu open, error state shown), not just the landing state.
+
+**axe does not scan cross-origin iframes.** A page whose only form is an embedded widget (Go High Level calendar or chat, Stripe Checkout, YouTube) scans "clean" while the form is untested. Require `<iframe title="…">`, then do a manual keyboard pass inside the embed and note it in the report.
 
 ### 2c. Optional CLI sanity check
 
 ```bash
-npx pa11y https://<live-url>  # one-shot audit, no setup
+npx pa11y <url>
 ```
 
-Faster than wiring Playwright if you just need a quick sanity check, but axe-core has wider rule coverage.
+Quicker than wiring Playwright for a one-off look; axe has wider rule coverage.
 
 ### What to do with results
 
-Report each finding with its WCAG SC reference and severity. Group findings by route. **Run axe before semantic review, not after** — semantic review is for the half of issues axe doesn't catch; you can't focus there if low-hanging contrast/landmark issues are still open.
-
-If you genuinely cannot run axe (offline environment, site can't be served, framework doesn't render to a real DOM), say so explicitly in the report header and proceed with semantic-only review — but mark the audit as **INCOMPLETE — automated scan skipped**.
-
-Reminder on coverage limits: axe, pa11y, and linters find a meaningful fraction of WCAG issues, not all. Roughly 30–50% of real WCAG problems require human review — that's what Step 3 is for.
+Report each finding with its SC and severity, grouped by route. Fix or triage axe findings **before** semantic review. If you genuinely cannot run axe (offline, site can't be served, no real DOM), say so in the report header and mark the audit **INCOMPLETE — automated scan skipped**.
 
 ## Step 3 — Semantic review (the LLM-specific value)
 
-Tools miss these. Apply each heuristic to changed UI code. For concrete code examples in any category below, load [patterns.md](patterns.md).
+Apply each heuristic to changed UI code. For field-tested code patterns and Next.js/Tailwind/Radix/embed specifics, load [patterns.md](patterns.md).
 
-### Images & media — SC 1.1.1, 1.2.1–1.2.5
-Alt text must describe what the image *actually shows* in context. `<img src="duck.jpg" alt="A dog">` passes every linter and fails every screen-reader user. Decorative images: `alt=""` (empty, not missing). Prerecorded video requires captions (SC 1.2.2, A) and audio description or media alternative (SC 1.2.3, A; SC 1.2.5 strengthens this at AA). Live video needs captions (SC 1.2.4, AA). Auto-generated captions are a starting point, not compliance.
+### Images & media — SC 1.1.1, 1.2.1–1.2.5, 1.4.5
+Alt text describes what the image *actually shows in context*; `<img src="duck.jpg" alt="A dog">` passes every linter. Decorative images: `alt=""` (empty, not missing). **Images of text** — hero graphics with slogans, rendered buttons — fail SC 1.4.5 (AA) unless the presentation is essential or customisable; use real text. Prerecorded video needs captions (1.2.2, A) and audio description (1.2.5, AA). Live video needs captions (1.2.4, AA). Auto-generated captions are a draft, not compliance.
 
 ### Link text & button labels — SC 2.4.4, 2.5.3
-Link text must describe the destination *out of context* — "Click here," "Learn more," "Read more" all fail the screen-reader links list. Icon-only buttons need an accessible name (`aria-label` or visually-hidden text). When an `aria-label` exists on a control with visible text, the `aria-label` MUST contain the visible text (SC 2.5.3 "Label in Name" — voice-control users say what they see).
+SC 2.4.4 (A) is **Link Purpose (In Context)**: the purpose must be determinable from the link text *or* its programmatically determined context — the same sentence, paragraph, list item, or table cell, or the heading that immediately precedes the link (technique H80). So "Read more" after a card's `<h3>` title passes, and "Learn more" inside a paragraph that names the destination passes; three identical "Learn more" links in sibling cards with no heading or paragraph naming their destinations do not. Link-text-alone is 2.4.9 (AAA): recommend it, don't report it as a failure. Icon-only controls need an accessible name. When `aria-label` and visible text coexist, the label must contain the visible text (2.5.3, A).
 
-### Heading hierarchy — SC 1.3.1, 2.4.6
-Headings must describe their section, not just "big text." Do not skip levels (h2 → h4 is a structural break). Using a single `<h1>` per page is a strong best practice — not a normative WCAG rule, but it improves screen-reader navigation.
+### Headings & landmarks — SC 1.3.1, 2.4.1, 2.4.6
+Headings describe their section (2.4.6). Skipped levels (h2 → h4) and multiple `<h1>`s are **best practices, not SC failures** (axe tags `heading-order` as best-practice) — report them as advisory. **SC 2.4.1 Bypass Blocks (A):** every page needs a skip link to `<main>` or proper landmarks (`<header>`, `<nav aria-label>`, `<main>`, `<footer>`).
 
 ### Forms — SC 1.3.1, 1.3.5, 3.3.1, 3.3.2, 3.3.3, 4.1.2
-Every input has a programmatic label. Required fields marked programmatically (not just with a red asterisk). Errors are announced and associated via `aria-describedby`. `autocomplete` set on identity/contact/payment fields (name, email, tel, cc-number, address-*). Error messages should **suggest a fix** (SC 3.3.3, AA), not just flag the problem.
+Every input has a programmatic label. Required fields are marked programmatically (`required`), not just with an asterisk. Errors are associated via `aria-describedby` and announced. `autocomplete` on identity, contact, and payment fields. Error messages **suggest a fix** (3.3.3, AA), not just flag the problem.
 
-### Keyboard — SC 2.1.1, 2.1.2, 2.4.3, 2.4.7, 2.4.11
-Everything interactive reaches via Tab. Focus order matches visual order. Focus visible (never `outline: none` without replacement). No keyboard traps (modals must escape via Esc). **2.2 NEW — SC 2.4.11 "Focus Not Obscured (Minimum)" (AA):** when an element receives focus, it must not be entirely hidden by author-created content (sticky headers, cookie banners, chat widgets). **Watch for the multi-background failure mode (SC 1.4.11):** a single global focus-ring color often passes 3:1 on dark sections but fails on light sections (or vice versa). When the page has multiple distinct background colors — dark hero, light body, brand-color CTA — scope the ring color per section via a CSS custom property, or use a two-color halo (`outline` + `box-shadow`). See `patterns.md` "Focus rings on multi-background pages."
+### Keyboard & focus — SC 2.1.1, 2.1.2, 2.4.3, 2.4.7, 2.4.11, 1.4.11
+Everything interactive is reachable by Tab, in visual order, with a visible focus indicator (never `outline: none` without a replacement); no traps (Esc closes modals). **2.2 NEW — SC 2.4.11 Focus Not Obscured (Minimum) (AA):** the focused element must not be *entirely* hidden by author-created content (sticky header, cookie banner, chat bubble). **Multi-background trap (1.4.11):** a single global focus-ring colour passes 3:1 on dark sections and fails on light ones, or vice versa — scope the ring per section or use a two-tone halo.
 
-### Color & contrast — SC 1.4.1, 1.4.3, 1.4.11, 1.4.12
-Body text 4.5:1 vs background. Large text (≥18pt or ≥14pt bold) 3:1. UI components, focus indicators, and icons conveying state 3:1 (SC 1.4.11). Color alone never conveys info — pair with icon/text (SC 1.4.1). Layout must still function when users override text spacing (SC 1.4.12, AA).
+### Colour & contrast — SC 1.4.1, 1.4.3, 1.4.11, 1.4.12
+Text 4.5:1; large text (≥ 24 px, or ≥ 18.66 px bold) 3:1. UI components, focus indicators, and state icons 3:1 (1.4.11). Colour alone never conveys information (1.4.1). Layout survives user overrides of line-height, letter-, word-, and paragraph-spacing (1.4.12).
 
 ### Resize, reflow, hover — SC 1.4.4, 1.4.10, 1.4.13
-Text must scale to 200% without loss of content or function (SC 1.4.4, AA). Content must reflow at 320 CSS px wide without horizontal scrolling (SC 1.4.10, AA). Tooltips and hover/focus-triggered popovers must be dismissable, hoverable, and persistent (SC 1.4.13, AA).
+200% zoom without loss of content or function (1.4.4). Reflow at 320 CSS px without horizontal scrolling (1.4.10). Hover/focus popovers are dismissable, hoverable, and persistent (1.4.13).
 
-### Interactive components & ARIA — SC 4.1.2, 4.1.3
-Prefer native HTML (`<button>` over `<div role="button">`). If using ARIA, follow the WAI-ARIA Authoring Practices (APG) patterns — note these are non-normative design guides, not WCAG requirements. Modals need focus trap, return focus on close, `role="dialog"` + `aria-modal="true"`. Never put an ARIA role on an element that already has the equivalent native role (`<button role="button">` is an anti-pattern). Dynamic status updates go in a live region or element with `role="status"`/`role="alert"` (SC 4.1.3, AA).
+### Components & ARIA — SC 4.1.2, 4.1.3
+Native HTML first (`<button>`, `<dialog>`, `<details>`). ARIA per the WAI-ARIA Authoring Practices (non-normative). Never add a role an element already has. Dialogs: focus trap, return focus on close, `aria-modal`, an accessible name. Status messages go in a live region that exists in the DOM **before** the message appears (4.1.3, AA).
 
-### Motion & input — SC 2.3.1, 2.3.3, 2.5.1, 2.5.7, 2.5.8
-No content flashes more than three times per second (SC 2.3.1). Respect `prefers-reduced-motion` for animations, parallax, and autoplay (SC 2.3.3 at AAA, but widely expected). **Auditor's note: animations on `::before` / `::after` pseudo-elements** are a common blind spot — JS `document.querySelectorAll('*')` doesn't reach them, so a runtime sweep can miss them. Grep the stylesheet for `@keyframes` and `animation:` declarations and trace where each is applied; check pseudo-element targets explicitly. **2.2 NEW — SC 2.5.7 "Dragging Movements" (AA):** drag interactions must have a single-pointer non-drag alternative. **2.2 NEW — SC 2.5.8 "Target Size (Minimum)" (AA):** pointer targets are at least 24×24 CSS pixels, with defined exceptions (spacing, inline in text, equivalent elsewhere, user-agent defaults, essential).
+### Motion & input — SC 2.2.2, 2.3.1, 2.5.7, 2.5.8
+**SC 2.2.2 Pause, Stop, Hide (A):** anything that auto-plays, moves, blinks, or scrolls for more than 5 s (carousels, autoplay video, marquees, animated backgrounds) needs a visible pause/stop control. A `prefers-reduced-motion` query does not satisfy it. No content flashes more than three times per second (2.3.1). Grep `@keyframes` and trace where each applies — runtime DOM sweeps miss animations on `::before`/`::after`. **2.5.7 Dragging Movements (AA):** every drag has a single-pointer alternative. **2.5.8 Target Size (Minimum) (AA):** 24×24 CSS px, with five exceptions — spacing, equivalent control, inline in text, user-agent default, essential. Spacing arithmetic is in patterns.md.
 
 ### Page-level — SC 2.4.2, 3.1.1, 3.2.3, 3.2.4, 3.2.6
-Unique descriptive `<title>` per page. Root `<html lang="...">` set correctly (SC 3.1.1). Navigation and same-function component labels consistent across pages (SC 3.2.3, 3.2.4). **2.2 NEW — SC 3.2.6 "Consistent Help" (A):** if a help mechanism (contact link, chat widget, self-serve help link) appears on multiple pages, it must appear in the same relative order on each page.
+Unique, descriptive `<title>` per page. `<html lang>` set. Navigation and same-function components named consistently across pages (3.2.3, 3.2.4). **2.2 NEW — SC 3.2.6 Consistent Help (A):** help mechanisms (contact link, phone number, chat launcher) appear in the same relative order on every page where they appear.
 
-### Auth & forms — 2.2 NEW
-- **SC 3.3.7 "Redundant Entry" (A):** multi-step forms auto-populate or let the user select previously entered info — don't make them retype it.
-- **SC 3.3.8 "Accessible Authentication (Minimum)" (AA):** login cannot require a cognitive function test (remembering, transcribing, puzzle-solving) without an accessible alternative. Don't block paste on password fields (breaks password managers). Don't disable autofill on login forms. Conventional CAPTCHAs need an accessible alternative (e.g., risk-based, or a non-cognitive challenge).
-- SC 3.3.9 "Accessible Authentication (Enhanced)" is Level AAA and is out of scope for this skill.
+### Auth & multi-step forms — SC 3.3.7, 3.3.8
+**2.2 NEW — SC 3.3.7 Redundant Entry (A):** don't make users retype information they entered earlier in the same process; auto-populate or offer a selection. **2.2 NEW — SC 3.3.8 Accessible Authentication (Minimum) (AA):** authentication cannot require a cognitive function test (memorising, transcribing, solving a puzzle) unless one of four exceptions applies — (1) an alternative method that isn't a cognitive test, (2) a mechanism such as paste or autofill that assists the user, (3) **object recognition** — image-grid "select the traffic lights" CAPTCHAs are permitted at AA, (4) recognising personal content the user provided. Distorted-text, transcription, and puzzle CAPTCHAs need an alternative or mechanism. Never block paste or `autocomplete` on login fields. SC 3.3.9 (AAA) removes the object-recognition exception and is out of scope.
 
 ## Report format
 
-Every audit report MUST start with an automated-scan results header so the reviewer knows the audit's actual coverage. Then list findings, then list verified-passing items.
+Every audit report MUST start with an automated-scan header so the reviewer knows the audit's actual coverage. Then findings, then verified-passing items.
 
 ### Report header (required)
 
 ```
 ## Automated scan results
-- Tool: axe-core via Playwright (or pa11y, or "skipped — see note")
-- Routes scanned: /, /services, /about, /faq, /book, /privacy, /terms
+- Tool: axe-core <version> via @axe-core/playwright (or project script, pa11y, or "skipped — see note")
+- Routes: /, /services, /about, /faq, /book, /privacy, /terms — at 1440px and 375px
+- States: landing, booking modal open
 - Violations: 0 blocking (critical/serious), 2 moderate, 0 minor
 - Lint: npm run lint clean
-- Timestamp: 2026-05-02T14:32:00Z
+- Not machine-checked: cross-origin iframes (GHL calendar); 2.4.11, 2.5.7, 3.2.6, 3.3.7, 3.3.8 (manual below)
+- Timestamp: 2026-09-29T14:32:00Z
 ```
 
-If automated scan was skipped, header MUST say so and explain why:
+If the scan was skipped, the header MUST say so and why:
+
 ```
 ## Automated scan results
-**INCOMPLETE — axe-core was not run.** Reason: [e.g. site can't be served, no internet, Storybook-only review, etc.]
+**INCOMPLETE — axe-core was not run.** Reason: [site can't be served, no internet, Storybook-only review, ...]
 The semantic review below covers human-grade checks only. Re-run with axe before declaring done.
 ```
 
@@ -174,23 +187,21 @@ File: src/components/Gallery.tsx:42
 Fix: alt="<describe what the image depicts in context>"
 ```
 
-Group: Level A issues > Level AA issues > advisory notes. A and AA block completion unless the user explicitly defers. AAA notes are informational.
+Group: Level A issues > Level AA issues > advisory notes (best practices, AAA). A and AA block completion unless the user explicitly defers.
 
 ### Verified passing (required)
 
-A list of the SCs that were checked and confirmed compliant (e.g., `1.4.10 Reflow ✅ no horizontal scroll at 320px`, `2.5.8 Target Size ✅ 0 interactive elements below 24×24`). Listing only failures leaves the reviewer guessing at coverage; an explicit pass list shows the audit's scope and builds trust that nothing was skipped.
-
-For SCs covered by axe directly (1.1.1 alt presence, 1.4.3 contrast, 4.1.2 ARIA, etc.), it's fine to credit axe as the verifier: `1.4.3 Contrast (minimum) ✅ axe: 0 violations`. For SCs that need semantic judgment (alt-text *meaning*, focus management, link-purpose-out-of-context), credit your manual review: `2.4.4 Link Purpose ✅ manual: all CTAs descriptive out of context`.
+List the SCs that were checked and confirmed, crediting the verifier: `1.4.3 Contrast ✅ axe: 0 violations` for axe-covered criteria; `2.4.4 Link Purpose ✅ manual: all card CTAs disambiguated by their heading context` for judgment criteria. Listing only failures leaves the reviewer guessing at coverage.
 
 ## Scope limits
 
-This skill covers code-level review only. It does **not** evaluate:
+Code-level review only. Not evaluated:
 
-- Live assistive-tech behavior (NVDA/JAWS/VoiceOver, TalkBack, VoiceOver iOS — manual testing required, ideally with real users)
-- Cognitive load and plain-language sufficiency in real use (needs user testing with the target disability community)
-- Third-party embeds not under your control (GHL widgets, YouTube, Stripe Checkout, reCAPTCHA) — flag them; fixes are upstream or must be replaced
-- Non-web surfaces (native mobile, PDF/Office docs, email templates, kiosks)
-- Legal or regulatory conformance. WCAG conformance is a prerequisite for many legal standards (Section 508, EN 301 549, ADA settlements, AODA) but meeting this checklist does not by itself demonstrate compliance — consult qualified counsel and auditors for that.
+- Live assistive-tech behaviour (NVDA, JAWS, VoiceOver, TalkBack) — manual testing, ideally with real users
+- Cognitive load and plain-language sufficiency — needs user testing
+- The inside of third-party embeds (GHL widgets, YouTube, Stripe Checkout, reCAPTCHA) — flag them, keyboard-test them, fixes are upstream
+- Non-web surfaces (native mobile, PDF/Office, email templates, kiosks)
+- Legal or regulatory conformance — consult qualified counsel and auditors
 
 ## Spec reference
 

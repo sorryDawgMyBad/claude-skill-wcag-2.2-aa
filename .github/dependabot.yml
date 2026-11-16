@@ -1,0 +1,18 @@
+# Weekly update PRs. Nothing auto-merges: each PR goes through the same
+# checks and ruleset as any other. New versions wait 7 days (cooldown).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
